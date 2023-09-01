@@ -1,3 +1,4 @@
+// togglwebhook.go
 package togglwebhook
 
 import (
@@ -6,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/ricotheque/webhooks-test/safelog"
 )
 
 func ValidateWebhook(secret, signature string, body []byte) bool {
@@ -40,6 +43,7 @@ func HandleTogglWebhook() http.HandlerFunc {
 
 		// Process payload (example: just print it for now)
 		fmt.Println(payloadAsString)
+		safelog.Log(payloadAsString)
 
 		w.WriteHeader(http.StatusOK)
 	}
