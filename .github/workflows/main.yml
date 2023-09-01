@@ -1,0 +1,38 @@
+name: Go Build and Deploy
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.20.6
+
+      - name: Build
+        run: go build -v -o webhooks-test .
+
+      - name: Test
+        run: go test -v .
+
+      - name: Copy Go files
+        run: rsync -R $(find . -name '*.go') ./
+
+      - name: Copy file via scp (executable and .go files)
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.VULTR_HOST }}
+          username: ${{ secrets.VULTR_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "."
+          target: "/webhooks-test"

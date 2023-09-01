@@ -3,17 +3,10 @@ package togglwebhook
 import (
 	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
-	"os"
 )
-
-type Payload struct {
-	Event   string      `json:"event"`
-	Data    interface{} `json:"data"`
-	Version string      `json:"version"`
-}
 
 func ValidateWebhook(secret, signature string, body []byte) bool {
 	mac := hmac.New(sha256.New, []byte(secret))
@@ -24,11 +17,11 @@ func ValidateWebhook(secret, signature string, body []byte) bool {
 
 func HandleTogglWebhook() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		secret := os.Getenv("TOGGL_WEBHOOK_SECRET")
-		if secret == "" {
-			http.Error(w, "Webhook secret not set", http.StatusInternalServerError)
-			return
-		}
+		// secret := os.Getenv("TTWH_SECRET")
+		// if secret == "" {
+		// 	http.Error(w, "Webhook secret not set", http.StatusInternalServerError)
+		// 	return
+		// }
 
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -36,20 +29,18 @@ func HandleTogglWebhook() http.HandlerFunc {
 			return
 		}
 
-		signature := r.Header.Get("x-webhook-signature-256") // Adjust this if the header is different
-		if !ValidateWebhook(secret, signature, body) {
-			http.Error(w, "Invalid signature", http.StatusUnauthorized)
-			return
-		}
+		// signature := r.Header.Get("x-webhook-signature-256") // Adjust this if the header is different
+		// if !ValidateWebhook(secret, signature, body) {
+		// 	http.Error(w, "Invalid signature", http.StatusUnauthorized)
+		// 	return
+		// }
 
-		var payload Payload
-		err = json.Unmarshal(body, &payload)
-		if err != nil {
-			http.Error(w, "Failed to parse JSON", http.StatusBadRequest)
-			return
-		}
+		// Now, 'body' contains the raw JSON payload as a string.
+		payloadAsString := string(body)
 
-		// Process payload
+		// Process payload (example: just print it for now)
+		fmt.Println(payloadAsString)
+
 		w.WriteHeader(http.StatusOK)
 	}
 }

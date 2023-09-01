@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	http.HandleFunc("/webhook-endpoint", togglwebhook.HandleTogglWebhook("YOUR_SECRET"))
+	http.HandleFunc("/ttwh", togglwebhook.HandleTogglWebhook())
 
 	log.Println("Server started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
