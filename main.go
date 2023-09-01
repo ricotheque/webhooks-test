@@ -19,10 +19,10 @@ func main() {
 
 	http.HandleFunc("/ttwh", togglwebhook.HandleTogglWebhook())
 
-	log.Println("Server started on :443")
-
 	// Modify this line, provide the paths to your certificate and private key files
 	log.Fatal(
-		http.ListenAndServeTLS(":443", "/etc/letsencrypt/live/webhooks.mossesgeld.com/fullchain.pem", "/etc/letsencrypt/live/webhooks.mossesgeld.com/privkey.pem", nil)
+		http.ListenAndServeTLS(":443", "/etc/letsencrypt/live/webhooks.mossesgeld.com/fullchain.pem", "/etc/letsencrypt/live/webhooks.mossesgeld.com/privkey.pem", nil),
 	)
+
+	log.Println("Server started on :443")
 }
