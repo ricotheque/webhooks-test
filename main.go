@@ -6,15 +6,10 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/ricotheque/webhooks-test/config"
 	"github.com/ricotheque/webhooks-test/safelog"
 	"github.com/ricotheque/webhooks-test/togglwebhook"
-
-	"github.com/knadh/koanf/parsers/yaml"
-	"github.com/knadh/koanf/providers/file"
-	"github.com/knadh/koanf/v2"
 )
-
-var k = koanf.New(".")
 
 func main() {
 	// Initialize the default logger
@@ -24,25 +19,16 @@ func main() {
 	defer safelog.CloseDefaultLogger()
 
 	// Load configuration
-	if err := k.Load(file.Provider("config.yaml"), yaml.Parser()); err != nil {
-		log.Fatalf("error loading config: %v", err)
-	}
+	config.LoadConfig("./config.yaml")
 
-	certFile := ""
-	if certFile = k.String("certFile"); certFile == "" {
-		log.Fatalf("error loading config: %v", "certFile missing from config.yaml")
-	}
+	// Set up route
+	http.HandleFunc("/ttwh", togglwebhook.HandleTogglWebhook())
 
-	keyFile := ""
-	if keyFile = k.String("keyFile"); keyFile == "" {
-		log.Fatalf("error loading config: %v", "keyFile missing from config.yaml")
-	}
-
-	togglSecret := k.String("togglWebhooks.secret")
-
-	http.HandleFunc("/ttwh", togglwebhook.HandleTogglWebhook(togglSecret))
-
-	log.Println("Starting to listen on :443")
+	// Start receiving payloads
+	fmt.Println("Test")
+	certFile := config.Get("certFile").(string)
+	keyFile := config.Get("keyFile").(string)
+	log.Println("Listening on :443")
 	log.Fatal(
 		http.ListenAndServeTLS(":443", certFile, keyFile, nil),
 	)

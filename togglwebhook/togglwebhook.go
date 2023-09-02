@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/ricotheque/webhooks-test/config"
 	"github.com/ricotheque/webhooks-test/safelog"
 )
 
@@ -19,7 +20,7 @@ func ValidateWebhook(secret, signature string, body []byte) bool {
 	return hmac.Equal(expectedMAC, []byte(signature))
 }
 
-func HandleTogglWebhook(secret string) http.HandlerFunc {
+func HandleTogglWebhook() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Save the payload as a string
 		body, err := io.ReadAll(r.Body)
@@ -33,6 +34,7 @@ func HandleTogglWebhook(secret string) http.HandlerFunc {
 		if isSubscription(payloadAsString) {
 
 		} else {
+			secret := config.Get("togglWebhooks.secret").(string)
 			if secret == "" {
 				http.Error(w, "togglWebhooks.secret not set on config.yaml", http.StatusInternalServerError)
 				return
@@ -46,7 +48,7 @@ func HandleTogglWebhook(secret string) http.HandlerFunc {
 			}
 		}
 
-		// Process payload (example: just print it for now)
+		// Process payload
 		fmt.Println(payloadAsString)
 		safelog.Log(payloadAsString)
 
