@@ -22,7 +22,7 @@ Setting Up HTTPS for Your Go Application with Certbot and Let's Encrypt:
     a. **Using the Standalone Plugin**:
         If you don't have a web server running, you can use Certbot's standalone plugin to obtain a certificate:
 
-        $ sudo certbot certonly --standalone -d webhooks.example.com
+        $ sudo certbot certonly --standalone
 
         Note: Certbot will bind to port 80, so ensure it's free.
 

@@ -8,7 +8,13 @@ import (
 
 	"github.com/ricotheque/webhooks-test/safelog"
 	"github.com/ricotheque/webhooks-test/togglwebhook"
+
+	"github.com/knadh/koanf/parsers/yaml"
+	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/v2"
 )
+
+var k = koanf.New(".")
 
 func main() {
 	// Initialize the default logger
@@ -17,12 +23,27 @@ func main() {
 	}
 	defer safelog.CloseDefaultLogger()
 
-	http.HandleFunc("/ttwh", togglwebhook.HandleTogglWebhook())
+	// Load configuration
+	if err := k.Load(file.Provider("config.yaml"), yaml.Parser()); err != nil {
+		log.Fatalf("error loading config: %v", err)
+	}
 
-	// Modify this line, provide the paths to your certificate and private key files
+	certFile := ""
+	if certFile = k.String("certFile"); certFile == "" {
+		log.Fatalf("error loading config: %v", "certFile missing from config.yaml")
+	}
+
+	keyFile := ""
+	if keyFile = k.String("keyFile"); keyFile == "" {
+		log.Fatalf("error loading config: %v", "keyFile missing from config.yaml")
+	}
+
+	togglSecret := k.String("togglWebhooks.secret")
+
+	http.HandleFunc("/ttwh", togglwebhook.HandleTogglWebhook(togglSecret))
+
+	log.Println("Starting to listen on :443")
 	log.Fatal(
-		http.ListenAndServeTLS(":443", "/etc/letsencrypt/live/webhooks.mossesgeld.com/fullchain.pem", "/etc/letsencrypt/live/webhooks.mossesgeld.com/privkey.pem", nil),
+		http.ListenAndServeTLS(":443", certFile, keyFile, nil),
 	)
-
-	log.Println("Server started on :443")
 }
