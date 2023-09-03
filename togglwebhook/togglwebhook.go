@@ -4,20 +4,25 @@ package togglwebhook
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/ricotheque/webhooks-test/config"
 	"github.com/ricotheque/webhooks-test/safelog"
 )
 
-func ValidateWebhook(secret, signature string, body []byte) bool {
+func ValidateWebhook(secret string, signature string, payload string) bool {
+	messageMAC, _ := hex.DecodeString(strings.TrimPrefix(signature, "sha256="))
+
 	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(body)
+	mac.Write([]byte(payload))
 	expectedMAC := mac.Sum(nil)
-	return hmac.Equal(expectedMAC, []byte(signature))
+
+	return hmac.Equal([]byte(messageMAC), expectedMAC)
 }
 
 func HandleTogglWebhook() http.HandlerFunc {
@@ -36,13 +41,14 @@ func HandleTogglWebhook() http.HandlerFunc {
 		} else {
 			secret := config.Get("togglWebhooks.secret").(string)
 			if secret == "" {
+				fmt.Println("togglWebhooks.secret not set on config.yaml")
 				http.Error(w, "togglWebhooks.secret not set on config.yaml", http.StatusInternalServerError)
 				return
 			}
 
 			signature := r.Header.Get("x-webhook-signature-256")
-			fmt.Println(signature)
-			if !ValidateWebhook(secret, signature, body) {
+			if !ValidateWebhook(secret, signature, payloadAsString) {
+				fmt.Println("Invalid signature")
 				http.Error(w, "Invalid signature", http.StatusUnauthorized)
 				return
 			}
