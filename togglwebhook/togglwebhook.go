@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/ricotheque/webhooks-test/config"
@@ -55,6 +56,7 @@ func HandleTogglWebhook() http.HandlerFunc {
 		}
 
 		// Process payload
+		fmt.Println(payloadAsString)
 		parsePayload(payloadAsString)
 
 		w.WriteHeader(http.StatusOK)
@@ -87,9 +89,9 @@ func isSubscription(payload string) bool {
 
 func parsePayload(payload string) {
 	type Meta struct {
-		Model       string `json:"model"`
-		Action      string `json:"action"`
-		EventUserID int64  `json:"event_user_id"`
+		Model       string      `json:"model"`
+		Action      string      `json:"action"`
+		EventUserID interface{} `json:"event_user_id"`
 	}
 	type Event struct {
 		Timestamp string `json:"timestamp"`
@@ -113,7 +115,7 @@ func parsePayload(payload string) {
 	fmt.Printf("Event ID: %d\n", event.EventID)
 	fmt.Printf("Metadata Model: %s\n", event.Metadata.Model)
 	fmt.Printf("Metadata Action: %s\n", event.Metadata.Action)
-	fmt.Printf("Metadata Event User ID: %d\n", event.Metadata.EventUserID)
+	fmt.Printf("Metadata Event User ID: %d\n", parseEventUserId(event.Metadata.EventUserID))
 	fmt.Printf("Payload: %s\n", event.Payload)
 
 	safelog.Log(fmt.Sprintf(
@@ -122,8 +124,30 @@ func parsePayload(payload string) {
 		event.EventID,
 		event.Metadata.Model,
 		event.Metadata.Action,
-		event.Metadata.EventUserID,
+		parseEventUserId(event.Metadata.EventUserID),
 		event.Payload,
 	),
 	)
+}
+
+// Unfortunately metadata.event_user_id can be provided as a number of string
+// We need to resolve it into an int64
+func parseEventUserId(value interface{}) int64 {
+	switch v := value.(type) {
+	case float64:
+		return int64(v)
+	case string:
+		intVal, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			fmt.Printf("Couldn't parse metadata.event_user_id as string or int64: %v\n", value)
+			return 0
+		}
+		return intVal
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	default:
+		return 0
+	}
 }
