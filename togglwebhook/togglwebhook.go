@@ -147,6 +147,11 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	// Check if e.Metadata is nil and initialize if necessary
+	if e.Metadata == nil {
+		e.Metadata = &Meta{}
+	}
+
 	// Convert Payload into string
 	switch v := aux.Payload.(type) {
 	case string:
