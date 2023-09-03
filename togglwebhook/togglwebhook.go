@@ -49,8 +49,7 @@ func HandleTogglWebhook() http.HandlerFunc {
 		}
 
 		// Process payload
-		fmt.Println(payloadAsString)
-		safelog.Log(payloadAsString)
+		parsePayload(payloadAsString)
 
 		w.WriteHeader(http.StatusOK)
 	}
@@ -78,4 +77,47 @@ func isSubscription(payload string) bool {
 	}
 
 	return false
+}
+
+func parsePayload(payload string) {
+	type Meta struct {
+		Model       string `json:"model"`
+		Action      string `json:"action"`
+		EventUserID string `json:"event_user_id"`
+	}
+	type Event struct {
+		Timestamp string `json:"timestamp"`
+		EventID   string `json:"event_id"`
+		Payload   string `json:"payload"`
+		Metadata  *Meta  `json:"metadata"`
+	}
+
+	event := Event{}
+	err := json.Unmarshal([]byte(payload), &event)
+	if err != nil {
+		panic(err)
+	}
+
+	// Defaulting missing fields
+	if event.Metadata == nil {
+		event.Metadata = &Meta{}
+	}
+
+	fmt.Printf("Timestamp: %s\n", event.Timestamp)
+	fmt.Printf("Event ID: %s\n", event.EventID)
+	fmt.Printf("Metadata Model: %s\n", event.Metadata.Model)
+	fmt.Printf("Metadata Action: %s\n", event.Metadata.Action)
+	fmt.Printf("Metadata Event User ID: %s\n", event.Metadata.EventUserID)
+	fmt.Printf("Payload: %s\n", event.Payload)
+
+	safelog.Log(fmt.Sprintf(
+		"%s\t%s\t%s\t%s\t%s\t%s\n",
+		event.Timestamp,
+		event.EventID,
+		event.Metadata.Model,
+		event.Metadata.Action,
+		event.Metadata.EventUserID,
+		event.Payload,
+	),
+	)
 }
