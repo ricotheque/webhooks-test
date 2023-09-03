@@ -153,6 +153,10 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 		e.Metadata = &Metadata{}
 	}
 
+	// If we don't do this, final struct won't have Metadata.Action and Metadata.Model
+	e.Metadata.Action = aux.Metadata.Action
+	e.Metadata.Model = aux.Metadata.Model
+
 	// Convert Payload into string
 	switch v := aux.Payload.(type) {
 	case string:
