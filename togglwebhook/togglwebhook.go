@@ -17,13 +17,13 @@ import (
 )
 
 type Event struct {
-	Timestamp string `json:"timestamp"`
-	EventID   int64  `json:"event_id"`
-	Payload   string `json:"-"`
-	Metadata  *Meta  `json:"metadata"`
+	Timestamp string    `json:"timestamp"`
+	EventID   int64     `json:"event_id"`
+	Payload   string    `json:"-"`
+	Metadata  *Metadata `json:"metadata"`
 }
 
-type Meta struct {
+type Metadata struct {
 	Model       string `json:"model"`
 	Action      string `json:"action"`
 	EventUserID int64  `json:"-"`
@@ -109,7 +109,7 @@ func parsePayload(payload string) {
 
 	// Defaulting missing fields
 	if event.Metadata == nil {
-		event.Metadata = &Meta{}
+		event.Metadata = &Metadata{}
 	}
 
 	fmt.Printf("Timestamp: %s\n", event.Timestamp)
@@ -137,6 +137,7 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 		Payload  interface{} `json:"payload"`
 		Metadata struct {
 			EventUserID interface{} `json:"event_user_id"`
+			*Metadata
 		} `json:"metadata"`
 		*Alias
 	}{
@@ -149,7 +150,7 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 
 	// Check if e.Metadata is nil and initialize if necessary
 	if e.Metadata == nil {
-		e.Metadata = &Meta{}
+		e.Metadata = &Metadata{}
 	}
 
 	// Convert Payload into string
