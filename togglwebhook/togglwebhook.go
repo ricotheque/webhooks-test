@@ -16,6 +16,19 @@ import (
 	"github.com/ricotheque/webhooks-test/safelog"
 )
 
+type Event struct {
+	Timestamp string `json:"timestamp"`
+	EventID   int64  `json:"event_id"`
+	Payload   string `json:"-"`
+	Metadata  *Meta  `json:"metadata"`
+}
+
+type Meta struct {
+	Model       string `json:"model"`
+	Action      string `json:"action"`
+	EventUserID int64  `json:"-"`
+}
+
 func ValidateWebhook(secret string, signature string, payload string) bool {
 	messageMAC, _ := hex.DecodeString(strings.TrimPrefix(signature, "sha256="))
 
@@ -88,18 +101,6 @@ func isSubscription(payload string) bool {
 }
 
 func parsePayload(payload string) {
-	type Meta struct {
-		Model       string      `json:"model"`
-		Action      string      `json:"action"`
-		EventUserID interface{} `json:"event_user_id"`
-	}
-	type Event struct {
-		Timestamp string `json:"timestamp"`
-		EventID   int64  `json:"event_id"`
-		Payload   string `json:"payload"`
-		Metadata  *Meta  `json:"metadata"`
-	}
-
 	event := Event{}
 	err := json.Unmarshal([]byte(payload), &event)
 	if err != nil {
@@ -115,7 +116,7 @@ func parsePayload(payload string) {
 	fmt.Printf("Event ID: %d\n", event.EventID)
 	fmt.Printf("Metadata Model: %s\n", event.Metadata.Model)
 	fmt.Printf("Metadata Action: %s\n", event.Metadata.Action)
-	fmt.Printf("Metadata Event User ID: %d\n", parseEventUserId(event.Metadata.EventUserID))
+	fmt.Printf("Metadata Event User ID: %d\n", event.Metadata.EventUserID)
 	fmt.Printf("Payload: %s\n", event.Payload)
 
 	safelog.Log(fmt.Sprintf(
@@ -124,30 +125,55 @@ func parsePayload(payload string) {
 		event.EventID,
 		event.Metadata.Model,
 		event.Metadata.Action,
-		parseEventUserId(event.Metadata.EventUserID),
+		event.Metadata.EventUserID,
 		event.Payload,
 	),
 	)
 }
 
-// Unfortunately metadata.event_user_id can be provided as a number of string
-// We need to resolve it into an int64
-func parseEventUserId(value interface{}) int64 {
-	switch v := value.(type) {
-	case float64:
-		return int64(v)
-	case string:
-		intVal, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			fmt.Printf("Couldn't parse metadata.event_user_id as string or int64: %v\n", value)
-			return 0
-		}
-		return intVal
-	case int64:
-		return v
-	case int:
-		return int64(v)
-	default:
-		return 0
+func (e *Event) UnmarshalJSON(data []byte) error {
+	type Alias Event
+	aux := struct {
+		Payload  interface{} `json:"payload"`
+		Metadata struct {
+			EventUserID interface{} `json:"event_user_id"`
+		} `json:"metadata"`
+		*Alias
+	}{
+		Alias: (*Alias)(e),
 	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	// Convert Payload into string
+	switch v := aux.Payload.(type) {
+	case string:
+		e.Payload = v
+	case map[string]interface{}:
+		bytes, err := json.Marshal(v)
+		if err != nil {
+			return err
+		}
+		e.Payload = string(bytes)
+	default:
+		return fmt.Errorf("unexpected type %T for Payload", v)
+	}
+
+	// Ensure EventUserID resolves to int64
+	switch v := aux.Metadata.EventUserID.(type) {
+	case float64:
+		e.Metadata.EventUserID = int64(v)
+	case string:
+		val, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return err
+		}
+		e.Metadata.EventUserID = val
+	default:
+		return fmt.Errorf("unexpected type %T for EventUserID", v)
+	}
+
+	return nil
 }
