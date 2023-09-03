@@ -25,7 +25,6 @@ func main() {
 	http.HandleFunc("/ttwh", togglwebhook.HandleTogglWebhook())
 
 	// Start receiving payloads
-	fmt.Println("Test")
 	certFile := config.Get("certFile").(string)
 	keyFile := config.Get("keyFile").(string)
 	log.Println("Listening on :443")
