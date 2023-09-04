@@ -16,17 +16,71 @@ import (
 	"github.com/ricotheque/webhooks-test/safelog"
 )
 
+// Event represents the top-level object structure
 type Event struct {
-	Timestamp string    `json:"timestamp"`
-	EventID   int64     `json:"event_id"`
-	Payload   string    `json:"-"`
+	Timestamp string `json:"timestamp"`
+	EventID   string
+	Payload   string
+	CreatorID string
 	Metadata  *Metadata `json:"metadata"`
 }
 
+// Metadata captures the nested metadata structure
 type Metadata struct {
-	Model       string `json:"model"`
-	Action      string `json:"action"`
-	EventUserID int64  `json:"-"`
+	Model       string
+	Action      string
+	EventUserID string
+}
+
+// UnmarshalJSON implements the custom JSON unmarshalling for Event
+func (e *Event) UnmarshalJSON(data []byte) error {
+	type Alias Event
+
+	aux := &struct {
+		EventID   int64           `json:"event_id"`
+		CreatorID int64           `json:"creator_id"`
+		Payload   json.RawMessage `json:"payload"`
+		*Alias
+	}{
+		Alias: (*Alias)(e),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	e.EventID = strconv.FormatInt(aux.EventID, 10)
+	e.CreatorID = strconv.FormatInt(aux.CreatorID, 10)
+	e.Payload = string(aux.Payload)
+	return nil
+}
+
+// UnmarshalJSON implements the custom JSON unmarshalling for Metadata
+func (m *Metadata) UnmarshalJSON(data []byte) error {
+	type Alias Metadata
+
+	aux := &struct {
+		Model       json.RawMessage  `json:"model"`
+		Action      *json.RawMessage `json:"action"`
+		EventUserID json.RawMessage  `json:"event_user_id"`
+		*Alias
+	}{
+		Alias: (*Alias)(m),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	if aux.Model != nil {
+		m.Model = string(aux.Model)
+	}
+	if aux.Action != nil {
+		m.Action = string(*aux.Action)
+	}
+	m.EventUserID = string(aux.EventUserID)
+
+	return nil
 }
 
 func ValidateWebhook(secret string, signature string, payload string) bool {
@@ -67,7 +121,7 @@ func HandleTogglWebhook() http.HandlerFunc {
 		}
 
 		// Process payload
-		parsePayload(payloadAsString)
+		ParsePayload(payloadAsString)
 
 		w.WriteHeader(http.StatusOK)
 	}
@@ -97,90 +151,76 @@ func isSubscription(payload string) bool {
 	return false
 }
 
-func parsePayload(payload string) {
+func ParsePayload(payload string) {
 	event := Event{}
 	err := json.Unmarshal([]byte(payload), &event)
 	if err != nil {
 		panic(err)
 	}
 
-	// Defaulting missing fields
-	if event.Metadata == nil {
-		event.Metadata = &Metadata{}
+	// Use default values in case metadata or its fields are missing
+	var model, action, eventUserID string
+	if event.Metadata != nil {
+		model = stripQuotes(event.Metadata.Model)
+		action = stripQuotes(event.Metadata.Action)
+		eventUserID = stripQuotes(event.Metadata.EventUserID)
 	}
 
-	fmt.Printf("Timestamp: %s\n", event.Timestamp)
-	fmt.Printf("Event ID: %d\n", event.EventID)
-	fmt.Printf("Metadata Model: %s\n", event.Metadata.Model)
-	fmt.Printf("Metadata Action: %s\n", event.Metadata.Action)
-	fmt.Printf("Metadata Event User ID: %d\n", event.Metadata.EventUserID)
-	fmt.Printf("Payload: %s\n", event.Payload)
+	// Make payloads one-liners
+	compactPayload, payloadErr := compactJSON(event.Payload)
+	if payloadErr != nil {
+		fmt.Println("Error compacting payload:", payloadErr)
+		return
+	}
+	event.Payload = compactPayload
 
-	safelog.Log(fmt.Sprintf(
-		"%s\t%d\t%s\t%s\t%d\t%s\n",
-		event.Timestamp,
-		event.EventID,
-		event.Metadata.Model,
-		event.Metadata.Action,
-		event.Metadata.EventUserID,
-		event.Payload,
-	),
-	)
+	// Combined print using fmt.Sprintf
+	combinedOutput := fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\t%s",
+		event.Timestamp, event.EventID, event.CreatorID,
+		model, action, eventUserID, event.Payload)
+
+	fmt.Println(combinedOutput)
+	safelog.Log(combinedOutput)
 }
 
-func (e *Event) UnmarshalJSON(data []byte) error {
-	type Alias Event
-	aux := struct {
-		Payload  interface{} `json:"payload"`
-		Metadata struct {
-			EventUserID interface{} `json:"event_user_id"`
-			*Metadata
-		} `json:"metadata"`
-		*Alias
-	}{
-		Alias: (*Alias)(e),
+// getString helps handle potential nil pointer dereferences
+func getString(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
+}
+
+func compactJSON(jsonStr string) (string, error) {
+	var jsonObj interface{}
+
+	// Unmarshal the JSON string into an interface
+	if err := json.Unmarshal([]byte(jsonStr), &jsonObj); err != nil {
+		return "", err
 	}
 
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
+	// Marshal the interface back into a compact JSON string
+	compactJSONBytes, err := json.Marshal(jsonObj)
+	if err != nil {
+		return "", err
 	}
 
-	// Check if e.Metadata is nil and initialize if necessary
-	if e.Metadata == nil {
-		e.Metadata = &Metadata{}
+	// Convert the compact JSON bytes to a string
+	compactStr := string(compactJSONBytes)
+
+	// If the compacted JSON is a string, it will have surrounding quotes.
+	// Here, we safely remove those quotes.
+	compactStr = stripQuotes(compactStr)
+
+	return compactStr, nil
+}
+
+func stripQuotes(s string) string {
+	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+		return s[1 : len(s)-1]
 	}
-
-	// If we don't do this, final struct won't have Metadata.Action and Metadata.Model
-	e.Metadata.Action = aux.Metadata.Action
-	e.Metadata.Model = aux.Metadata.Model
-
-	// Convert Payload into string
-	switch v := aux.Payload.(type) {
-	case string:
-		e.Payload = v
-	case map[string]interface{}:
-		bytes, err := json.Marshal(v)
-		if err != nil {
-			return err
-		}
-		e.Payload = string(bytes)
-	default:
-		return fmt.Errorf("unexpected type %T for Payload", v)
+	if s == "" {
+		s = "-"
 	}
-
-	// Ensure EventUserID resolves to int64
-	switch v := aux.Metadata.EventUserID.(type) {
-	case float64:
-		e.Metadata.EventUserID = int64(v)
-	case string:
-		val, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			return err
-		}
-		e.Metadata.EventUserID = val
-	default:
-		return fmt.Errorf("unexpected type %T for EventUserID", v)
-	}
-
-	return nil
+	return s
 }
