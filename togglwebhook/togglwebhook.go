@@ -49,10 +49,8 @@ func HandleTogglWebhook() http.HandlerFunc {
 		}
 		payloadAsString := string(body)
 
-		// If the payload is a webhooks subscription, don't do the secret check
-		if isSubscription(payloadAsString) {
-
-		} else {
+		// Only do the secret check if the payload is not a subscription
+		if !isSubscription(payloadAsString) {
 			secret := config.Get("togglWebhooks.secret").(string)
 			if secret == "" {
 				fmt.Println("togglWebhooks.secret not set on config.yaml")
@@ -69,7 +67,6 @@ func HandleTogglWebhook() http.HandlerFunc {
 		}
 
 		// Process payload
-		fmt.Println(payloadAsString)
 		parsePayload(payloadAsString)
 
 		w.WriteHeader(http.StatusOK)
