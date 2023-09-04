@@ -183,14 +183,6 @@ func ParsePayload(payload string) {
 	safelog.Log(combinedOutput)
 }
 
-// getString helps handle potential nil pointer dereferences
-func getString(s string) string {
-	if s == "" {
-		return "-"
-	}
-	return s
-}
-
 func compactJSON(jsonStr string) (string, error) {
 	var jsonObj interface{}
 
