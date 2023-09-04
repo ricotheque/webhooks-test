@@ -11,9 +11,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-
-	"github.com/ricotheque/webhooks-test/config"
-	"github.com/ricotheque/webhooks-test/safelog"
 )
 
 // Event represents the top-level object structure
@@ -93,11 +90,12 @@ func ValidateWebhook(secret string, signature string, payload string) bool {
 	return hmac.Equal([]byte(messageMAC), expectedMAC)
 }
 
-func HandleTogglWebhook() http.HandlerFunc {
+func HandleTogglWebhook(secret string, channel chan<- string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Save the payload as a string
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
+			channel <- "Failed to read request body"
 			http.Error(w, "Failed to read request body", http.StatusInternalServerError)
 			return
 		}
@@ -105,23 +103,23 @@ func HandleTogglWebhook() http.HandlerFunc {
 
 		// Only do the secret check if the payload is not a subscription
 		if !isSubscription(payloadAsString) {
-			secret := config.Get("togglWebhooks.secret").(string)
 			if secret == "" {
-				fmt.Println("togglWebhooks.secret not set on config.yaml")
-				http.Error(w, "togglWebhooks.secret not set on config.yaml", http.StatusInternalServerError)
+				channel <- "Missing secret"
+				http.Error(w, "Missing secret", http.StatusInternalServerError)
 				return
 			}
 
 			signature := r.Header.Get("x-webhook-signature-256")
 			if !ValidateWebhook(secret, signature, payloadAsString) {
-				fmt.Println("Invalid signature")
+				channel <- "Invalid signature"
 				http.Error(w, "Invalid signature", http.StatusUnauthorized)
 				return
 			}
 		}
 
 		// Process payload
-		ParsePayload(payloadAsString)
+		result := ParsePayload(payloadAsString)
+		channel <- result
 
 		w.WriteHeader(http.StatusOK)
 	}
@@ -151,7 +149,7 @@ func isSubscription(payload string) bool {
 	return false
 }
 
-func ParsePayload(payload string) {
+func ParsePayload(payload string) string {
 	event := Event{}
 	err := json.Unmarshal([]byte(payload), &event)
 	if err != nil {
@@ -169,8 +167,7 @@ func ParsePayload(payload string) {
 	// Make payloads one-liners
 	compactPayload, payloadErr := compactJSON(event.Payload)
 	if payloadErr != nil {
-		fmt.Println("Error compacting payload:", payloadErr)
-		return
+		return fmt.Sprintf("Error compacting payload: %v", payloadErr)
 	}
 	event.Payload = compactPayload
 
@@ -179,8 +176,7 @@ func ParsePayload(payload string) {
 		event.Timestamp, event.EventID, event.CreatorID,
 		model, action, eventUserID, event.Payload)
 
-	fmt.Println(combinedOutput)
-	safelog.Log(combinedOutput)
+	return combinedOutput
 }
 
 func compactJSON(jsonStr string) (string, error) {
